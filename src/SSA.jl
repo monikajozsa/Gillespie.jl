@@ -90,7 +90,7 @@ function gillespie(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix
     # Main loop
     termination_status = "finaltime"
     nsteps = 0
-    while t <= tf
+    while size(ta)[1] <= tf
         pf = F(x,parms)
         # Update time
         sumpf = sum(pf)
@@ -147,13 +147,10 @@ function truejump(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{
     # Main loop
     termination_status = "finaltime"
     nsteps = 0
-    while t <= tf
+    while size(ta)[1] <= tf
         ds = rand(Exponential(1.0))
         f = (u)->(quadgk((u)->sum(F(x,parms,u)),t,u)[1]-ds)
         newt = fzero(f,t)
-        if newt>tf
-          break
-        end
         t=newt
         pf = F(x,parms,t)
         # Update time
@@ -163,6 +160,9 @@ function truejump(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{
             break
         end
         push!(ta,t)
+        if size(ta)[1]>tf
+          break
+        end
         # Update event
         ev = pfsample(pf,sumpf,numpf)
         if x isa SVector
@@ -219,7 +219,7 @@ function jensen(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{In
     # Main loop
     termination_status = "finaltime"
     nsteps = 0
-    while t <= tf
+    while size(ta)[1] <= tf
         dt = rand(Exponential(1/max_rate))
         t += dt
         if tvc
@@ -285,7 +285,7 @@ function jensen_alljumps(x0::AbstractVector{Int64},F::Base.Callable,nu::Abstract
     ta = Vector{Float64}()
     t = 0.0
     push!(ta,t)
-    while t < tf
+    while size(ta)[1] < tf
       dt = rand(Exponential(1/max_rate))
       t += dt
       push!(ta,t)
