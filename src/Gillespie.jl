@@ -9,7 +9,7 @@ using StaticArrays
 export
     ssa,
     gillespie,
-    jensen,
+#     jensen,
     truejump,
     ssa_data,
     pfsample,
