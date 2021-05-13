@@ -40,9 +40,9 @@ function ssa(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{Int64
   if algo == :gillespie
     return gillespie(x0,F,nu,parms,tf)
   end
-  if algo == :jensen
-    return jensen(x0,F,nu,parms,tf,max_rate,thin)
-  end
+#   if algo == :jensen
+#     return jensen(x0,F,nu,parms,tf,max_rate,thin)
+#   end
   if algo == :tjm
     return tjm(x0,F,nu,parms,tf)
   end
