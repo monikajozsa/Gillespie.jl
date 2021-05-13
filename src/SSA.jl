@@ -15,7 +15,7 @@ end
 - **F** : a `Function` or a callable type, which itself takes two arguments; x, a `Vector` of `Int64` representing the states, and parms, a `Vector` of `Float64` representing the parameters of the system.
 - **nu** : a `Matrix` of `Int64`, representing the transitions of the system, organised by row.
 - **parms** : a `Vector` of `Float64` representing the parameters of the system.
-- **tf** : the final simulation time (`Float64`).
+- **maxnsteps** : the maximum number of jumps (`Int64`).
 - **alg** : the algorithm used (`Symbol`, either `:gillespie`, `jensen`, or `tjc`).
 - **tvc** : whether rates are time varying.
 "
@@ -24,7 +24,7 @@ struct SSAArgs{X,Ftype,N,P}
     F::Ftype
     nu::N
     parms::P
-    tf::Float64
+    maxnsteps::Int64
     alg::Symbol
     tvc::Bool
 end
@@ -72,11 +72,11 @@ This function performs Gillespie's stochastic simulation algorithm. It takes the
 - **F** : a `Function` or a callable type, which itself takes two arguments; x, a `Vector` of `Int64` representing the states, and parms, a `Vector` of `Float64` representing the parameters of the system.
 - **nu** : a `Matrix` of `Int64`, representing the transitions of the system, organised by row.
 - **parms** : a `Vector` of `Float64` representing the parameters of the system.
-- **tf** : the final simulation time (`Float64`).
+- **maxnsteps** : the maximum number of jumps (`Int64`).
 "
-function gillespie(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{Int64},parms::AbstractVector{Float64},tf::Float64)
+function gillespie(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{Int64},parms::AbstractVector{Float64},maxnsteps::Int64)
     # Args
-    args = SSAArgs(x0,F,nu,parms,tf,:gillespie,false)
+    args = SSAArgs(x0,F,nu,parms,maxnsteps,:gillespie,false)
     # Set up time array
     ta = Vector{Float64}()
     t = 0.0
@@ -90,7 +90,7 @@ function gillespie(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix
     # Main loop
     termination_status = "finaltime"
     nsteps = 0
-    while size(ta)[1] <= tf
+    while nsteps <= maxnsteps
         pf = F(x,parms)
         # Update time
         sumpf = sum(pf)
@@ -129,11 +129,11 @@ This function performs the true jump method for piecewise deterministic Markov p
 - **F** : a `Function` or a callable type, which itself takes three arguments; x, a `Vector` of `Int64` representing the states, parms, a `Vector` of `Float64` representing the parameters of the system, and t, a `Float64` representing the time of the system.
 - **nu** : a `Matrix` of `Int64`, representing the transitions of the system, organised by row.
 - **parms** : a `Vector` of `Float64` representing the parameters of the system.
-- **tf** : the final simulation time (`Float64`).
+- **maxnsteps** : the maximum number of jumps (`Int64`).
 "
-function truejump(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{Int64},parms::AbstractVector{Float64},tf::Float64)
+function truejump(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{Int64},parms::AbstractVector{Float64},maxnsteps::Int64)
     # Args
-    args = SSAArgs(x0,F,nu,parms,tf,:tjm,true)
+    args = SSAArgs(x0,F,nu,parms,maxnsteps,:tjm,true)
     # Set up time array
     ta = Vector{Float64}()
     t = 0.0
@@ -147,7 +147,7 @@ function truejump(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{
     # Main loop
     termination_status = "finaltime"
     nsteps = 0
-    while size(ta)[1] <= tf
+    while nsteps <= maxnsteps
         ds = rand(Exponential(1.0))
         f = (u)->(quadgk((u)->sum(F(x,parms,u)),t,u)[1]-ds)
         newt = fzero(f,t)
@@ -160,9 +160,6 @@ function truejump(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{
             break
         end
         push!(ta,t)
-        if size(ta)[1]>tf
-          break
-        end
         # Update event
         ev = pfsample(pf,sumpf,numpf)
         if x isa SVector
@@ -191,12 +188,12 @@ This function performs stochastic simulation using thinning/uniformization/Jense
 - **F** : a `Function` or a callable type, which itself takes two arguments; x, a `Vector` of `Int64` representing the states, and parms, a `Vector` of `Float64` representing the parameters of the system. In the case of time-varying systems, a third argument, a `Float64` representing the time of the system should be added
 - **nu** : a `Matrix` of `Int64`, representing the transitions of the system, organised by row.
 - **parms** : a `Vector` of `Float64` representing the parameters of the system.
-- **tf** : the final simulation time (`Float64`).
+- **maxnsteps** : the maximum number of steps (`Int64`).
 - **max_rate**: the maximum rate (`Float64`).
 "
-function jensen(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{Int64},parms::AbstractVector{Float64},tf::Float64,max_rate::Float64,thin::Bool=true)
+function jensen(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{Int64},parms::AbstractVector{Float64},maxnsteps::Int64,max_rate::Float64,thin::Bool=true)
     if thin==false
-      return jensen_alljumps(x0::AbstractVector{Int64},F::Base.Callable,nu::Matrix{Int64},parms::AbstractVector{Float64},tf::Float64,max_rate::Float64)
+      return jensen_alljumps(x0::AbstractVector{Int64},F::Base.Callable,nu::Matrix{Int64},parms::AbstractVector{Float64},maxnsteps::Int64,max_rate::Float64)
     end
     tvc=true
     try
@@ -205,7 +202,7 @@ function jensen(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{In
       tvc=false
     end
     # Args
-    args = SSAArgs(x0,F,nu,parms,tf,:jensen,tvc)
+    args = SSAArgs(x0,F,nu,parms,maxnsteps,:jensen,tvc)
     # Set up time array
     ta = Vector{Float64}()
     t = 0.0
@@ -219,7 +216,7 @@ function jensen(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{In
     # Main loop
     termination_status = "finaltime"
     nsteps = 0
-    while size(ta)[1] <= tf
+    while nsteps <= maxnsteps
         dt = rand(Exponential(1/max_rate))
         t += dt
         if tvc
@@ -261,80 +258,80 @@ function jensen(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{In
     return SSAResult(ta,xar,stats,args)
 end
 
-"
-This function performs stochastic simulation using thinning/uniformization/Jensen's method, returning all the jumps, both real and 'virtual'. It takes the following arguments:
-
-- **x0** : a `Vector` of `Int64`, representing the initial states of the system.
-- **F** : a `Function` or a callable type, which itself takes two arguments; x, a `Vector` of `Int64` representing the states, and parms, a `Vector` of `Float64` representing the parameters of the system. In the case of time-varying systems, a third argument, a `Float64` representing the time of the system should be added
-- **nu** : a `Matrix` of `Int64`, representing the transitions of the system, organised by row.
-- **parms** : a `Vector` of `Float64` representing the parameters of the system.
-- **tf** : the final simulation time (`Float64`).
-- **max_rate**: the maximum rate (`Float64`).
-"
-function jensen_alljumps(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{Int64},parms::AbstractVector{Float64},tf::Float64,max_rate::Float64)
-    # Args
-    tvc=true
-    try
-      F(x0,parms,0.0)
-    catch
-      tvc=false
-    end
-    # Args
-    args = SSAArgs(x0,F,nu,parms,tf,:jensen,tvc)
-    # Set up time array
-    ta = Vector{Float64}()
-    t = 0.0
-    push!(ta,t)
-    while size(ta)[1] < tf
-      dt = rand(Exponential(1/max_rate))
-      t += dt
-      push!(ta,t)
-    end
-    nsteps=length(ta)-1
-    # Set up initial x
-    nstates = length(x0)
-    x = copy(x0')
-    xa = Array{Int64,1}(undef, (nsteps+1)*nstates)
-    xa[1:nstates] = x
-    # Number of propensity functions; one for no event
-    numpf = size(nu,1)+1
-    # Main loop
-    termination_status = "finaltime"
-    k=1 # step counter
-    while k <= nsteps
-        if tvc
-          t=ta[k]
-          pf=F(x,parms,t)
-        else
-          pf = F(x,parms)
-        end
-        sumpf = sum(pf)
-        if sumpf == 0.0
-            termination_status = "zeroprop"
-            break
-        end
-        if sumpf > max_rate
-            termination_status = "upper_bound_exceeded"
-            break
-        end
-        # Update event
-        ev = pfsample([pf; max_rate-sumpf],max_rate,numpf+1)
-        if ev < numpf # true jump
-          deltax = view(nu,ev,:)
-          for i in 1:nstates
-              @inbounds xa[k*nstates+i] = xa[(k-1)*nstates+i]+deltax[i]
-          end
-        else
-          for i in 1:nstates
-              @inbounds xa[k*nstates+i] = xa[(k-1)*nstates+i]
-          end
-        end
-        k +=1
-    end
-    stats = SSAStats(termination_status,nsteps)
-    xar = transpose(reshape(xa,length(x),nsteps+1))
-    return SSAResult(ta,xar,stats,args)
-end
+# "
+# This function performs stochastic simulation using thinning/uniformization/Jensen's method, returning all the jumps, both real and 'virtual'. It takes the following arguments:
+# 
+# - **x0** : a `Vector` of `Int64`, representing the initial states of the system.
+# - **F** : a `Function` or a callable type, which itself takes two arguments; x, a `Vector` of `Int64` representing the states, and parms, a `Vector` of `Float64` representing the parameters of the system. In the case of time-varying systems, a third argument, a `Float64` representing the time of the system should be added
+# - **nu** : a `Matrix` of `Int64`, representing the transitions of the system, organised by row.
+# - **parms** : a `Vector` of `Float64` representing the parameters of the system.
+# - **maxnsteps** : the maximum number of jumps (`Int64`).
+# - **max_rate**: the maximum rate (`Float64`).
+# "
+# function jensen_alljumps(x0::AbstractVector{Int64},F::Base.Callable,nu::AbstractMatrix{Int64},parms::AbstractVector{Float64},tf::Float64,max_rate::Float64)
+#     # Args
+#     tvc=true
+#     try
+#       F(x0,parms,0.0)
+#     catch
+#       tvc=false
+#     end
+#     # Args
+#     args = SSAArgs(x0,F,nu,parms,tf,:jensen,tvc)
+#     # Set up time array
+#     ta = Vector{Float64}()
+#     t = 0.0
+#     push!(ta,t)
+#     while t < tf
+#       dt = rand(Exponential(1/max_rate))
+#       t += dt
+#       push!(ta,t)
+#     end
+#     nsteps=length(ta)-1
+#     # Set up initial x
+#     nstates = length(x0)
+#     x = copy(x0')
+#     xa = Array{Int64,1}(undef, (nsteps+1)*nstates)
+#     xa[1:nstates] = x
+#     # Number of propensity functions; one for no event
+#     numpf = size(nu,1)+1
+#     # Main loop
+#     termination_status = "finaltime"
+#     k=1 # step counter
+#     while k <= nsteps
+#         if tvc
+#           t=ta[k]
+#           pf=F(x,parms,t)
+#         else
+#           pf = F(x,parms)
+#         end
+#         sumpf = sum(pf)
+#         if sumpf == 0.0
+#             termination_status = "zeroprop"
+#             break
+#         end
+#         if sumpf > max_rate
+#             termination_status = "upper_bound_exceeded"
+#             break
+#         end
+#         # Update event
+#         ev = pfsample([pf; max_rate-sumpf],max_rate,numpf+1)
+#         if ev < numpf # true jump
+#           deltax = view(nu,ev,:)
+#           for i in 1:nstates
+#               @inbounds xa[k*nstates+i] = xa[(k-1)*nstates+i]+deltax[i]
+#           end
+#         else
+#           for i in 1:nstates
+#               @inbounds xa[k*nstates+i] = xa[(k-1)*nstates+i]
+#           end
+#         end
+#         k +=1
+#     end
+#     stats = SSAStats(termination_status,nsteps)
+#     xar = transpose(reshape(xa,length(x),nsteps+1))
+#     return SSAResult(ta,xar,stats,args)
+# end
 
 "This takes a single argument of type `SSAResult` and returns a `DataFrame`."
 function ssa_data(s::SSAResult)
