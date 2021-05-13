@@ -26,7 +26,7 @@ This function performs stochastic simulation, currently using either the Doob-Gi
 - **F** : a `Function` or a callable type, which itself takes two arguments; x, a `Vector` of `Int64` representing the states, and parms, a `Vector` of `Float64` representing the parameters of the system. In the case of time-varying rates (for algorithms `:jensen` and `:tjm`), there should be a third argument, the time of the system.
 - **nu** : a `Matrix` of `Int64`, representing the transitions of the system, organised by row.
 - **parms** : a `Vector` of `Float64` representing the parameters of the system.
-- **tf** : the final simulation time (`Float64`)
+- **maxnsteps** : the maximum number of jumps (`Int64`)
 
 There are several named arguments:
 
